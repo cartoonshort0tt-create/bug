@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Luau, luau-lsp and Rojo
+        run: |
+          mkdir -p "$HOME/bin"
+          cd "$HOME/bin"
+          curl -sSfL -o luau.zip https://github.com/luau-lang/luau/releases/latest/download/luau-ubuntu.zip
+          curl -sSfL -o lsp.zip https://github.com/JohnnyMorganz/luau-lsp/releases/latest/download/luau-lsp-linux-x86_64.zip
+          curl -sSfL -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-linux-x86_64.zip
+          unzip -o -q luau.zip && unzip -o -q lsp.zip && unzip -o -q rojo.zip
+          curl -sSfL -o globalTypes.d.luau https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/main/scripts/globalTypes.d.luau
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Shared module tests (weather clock, spawn odds, economy ×3 rule)
+        run: python3 tools/run_tests.py
+
+      - name: Rojo build
+        run: rojo build default.project.json -o build.rbxl
+
+      - name: Type check against the Roblox API
+        run: |
+          rojo sourcemap default.project.json -o sourcemap.json
+          luau-lsp analyze --definitions="$HOME/bin/globalTypes.d.luau" --sourcemap=sourcemap.json src
